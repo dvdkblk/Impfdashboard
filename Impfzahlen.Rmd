@@ -1,0 +1,86 @@
+---
+title: "Impfungen"
+output: html_notebook
+---
+
+# Load Packages
+```{r}
+library(tidyverse)
+library(readxl)
+library(lubridate)
+library(scales)
+```
+
+
+
+# Download and read file from RKI-Website
+```{r}
+download.file("https://www.rki.de/DE/Content/InfAZ/N/Neuartiges_Coronavirus/Daten/Impfquotenmonitoring.xlsx?__blob=publicationFile", "Impfzahlen_RKI.xlsx", method = "curl")
+
+impf <- read_excel("Impfzahlen_RKI.xlsx", sheet = "Impfungen_proTag",  col_types = c("text", "numeric", "numeric", "numeric", "numeric"))
+```
+
+# Cleaning and formatting 
+```{r}
+#Format to Date
+impf$Datum <- as.Date(impf$Datum, format = "%d.%m.%Y")
+
+#Extract date of publication and add as attribute
+datum <- strsplit(gsub("Datenstand: ", "", x = read_excel("Impfzahlen_RKI.xlsx", sheet = "Erläuterung", range = "A3", col_names = "datum")$datum), split = ",")[[1]][1]
+attr(impf, "date") <- datum
+
+# Remove excessive rows
+impf <- impf[!is.na(impf$Datum),]
+
+# Rename Columns
+impf <- impf %>% 
+  rename(Gesamtimpfungen = `Gesamtzahl verabreichter Impfstoffdosen`, 
+         Erstimpfungen = starts_with("Erst"), 
+         Zweitimpfungen = starts_with("Zweit"),
+         Auffrischimpfungen = starts_with("Auffrisch"))
+
+```
+
+# plotting Vaccination uptake of the last seven days
+```{r Impfdashboard nachbauen}
+  #Calculate proportions of first, second and third dose
+impf <- impf %>% 
+            mutate(Anteil_Erst = Erstimpfungen/Gesamtimpfungen*100,
+                   Anteil_Zweit = Zweitimpfungen/Gesamtimpfungen*100, 
+                   Anteil_Auffrisch = Auffrischimpfungen/Gesamtimpfungen*100)
+impf %>% 
+  #Pivot the table
+  pivot_longer(cols = c(Erstimpfungen, Zweitimpfungen, Auffrischimpfungen), 
+               names_to = "Impfungen", 
+               values_to = "Anzahl") %>% 
+  #Filter for the last seven days available
+  filter(Datum > (max(Datum)- days(7))) %>% 
+  #Plot
+  ggplot(aes(x = Datum))+
+  # Basic Bar chart grouped by type of vaccination
+  geom_col(aes(y = Anzahl, fill = Impfungen))+
+  # Add number of total vaccinations
+  geom_text(aes(label = prettyNum(Gesamtimpfungen, big.mark = " ", decimal.mark = ","), 
+                y = Gesamtimpfungen+(Gesamtimpfungen*.05)))+
+  #Add percentage of first vaccination 
+  geom_text(data = impf %>%   filter(Datum > (max(Datum)- days(7))),
+            aes(label =  percent(Anteil_Erst,.1, decimal.mark = ",", scale = 1), 
+                y = Zweitimpfungen + Erstimpfungen/2), 
+            color = "white")+
+  #Add vaccination uptake from the week before
+   geom_col(data = impf %>% 
+              filter(Datum <= max(Datum)- days(7) & 
+                       Datum > max(Datum)- days(14)) %>% 
+              mutate(Datum = Datum +  days(7)) , 
+            aes(y = Gesamtimpfungen), color = "black", fill = "transparent")+
+   #Modify the Scales to make them more readable
+   scale_x_date(date_breaks = "1 day", date_labels = "%a")+
+   scale_y_continuous(label =  label_number(), 
+                      expand = expansion(mult = c(0, .05)))+
+   #Add title with information about the date of publication
+   labs(caption = paste0("Stand: ", attr(impf, "date")), 
+        title = paste0("Impfungen bis ", format(max(impf$Datum), "%d.%m.%Y")), 
+        x = element_blank(), 
+        y = "Impfungen", 
+        fill = "Vorwoche in schwarz")
+```
