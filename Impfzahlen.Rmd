@@ -48,7 +48,7 @@ impf <- impf %>%
             mutate(Anteil_Erst = Erstimpfungen/Gesamtimpfungen*100,
                    Anteil_Zweit = Zweitimpfungen/Gesamtimpfungen*100, 
                    Anteil_Auffrisch = Auffrischimpfungen/Gesamtimpfungen*100)
-impf %>% 
+plot <- impf %>% 
   #Pivot the table
   pivot_longer(cols = c(Erstimpfungen, Zweitimpfungen, Auffrischimpfungen), 
                names_to = "Impfungen", 
@@ -83,4 +83,6 @@ impf %>%
         x = element_blank(), 
         y = "Impfungen", 
         fill = "Vorwoche in schwarz")
+plot
+ggsave("Vaccine-Dashboard.png", plot, width = 20, height = 10, unit = "cm")
 ```
