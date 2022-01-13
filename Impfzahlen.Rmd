@@ -61,7 +61,7 @@ plot <- impf %>%
   geom_col(aes(y = Anzahl, fill = Impfungen))+
   # Add number of total vaccinations
   geom_text(aes(label = prettyNum(Gesamtimpfungen, big.mark = " ", decimal.mark = ","), 
-                y = Gesamtimpfungen+(Gesamtimpfungen*.05)))+
+                y = Gesamtimpfungen+max(Gesamtimpfungen*.025)))+
   #Add percentage of first vaccination 
   geom_text(data = impf %>%   filter(Datum > (max(Datum)- days(7))),
             aes(label =  percent(Anteil_Erst,.1, decimal.mark = ",", scale = 1), 
@@ -86,3 +86,28 @@ plot <- impf %>%
 plot
 ggsave("Vaccine-Dashboard.png", plot, width = 20, height = 10, unit = "cm")
 ```
+
+# Plotting proportions of types 
+```{r}
+impf %>% 
+  pivot_longer(cols = starts_with("Anteil"), names_to = "Art", values_to = "Anteil") %>% 
+  ggplot()+
+  geom_area(aes(x = Datum, y =Anteil, fill = Art))+
+  scale_y_continuous(expand = c(0,0))+
+  scale_x_date(expand = c(0,0), date_labels = "%b %y",date_breaks = "2 months")
+
+```
+
+# 
+```{r}
+
+impf %>% 
+  select(-Gesamtimpfungen) %>% 
+  pivot_longer(cols = ends_with("impfungen"), names_to = "Art", values_to = "Anteil") %>% 
+  ggplot()+
+  geom_area(aes(x = Datum, y =Anteil, fill = Art))+
+  scale_y_continuous(expand = c(0,0))+
+  scale_x_date(expand = c(0,0), date_labels = "%b %y",date_breaks = "2 months")
+```
+
+
