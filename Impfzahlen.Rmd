@@ -17,7 +17,7 @@ library(scales)
 ```{r}
 download.file("https://www.rki.de/DE/Content/InfAZ/N/Neuartiges_Coronavirus/Daten/Impfquotenmonitoring.xlsx?__blob=publicationFile", "Impfzahlen_RKI.xlsx", method = "curl")
 
-impf <- read_excel("Impfzahlen_RKI.xlsx", sheet = "Impfungen_proTag",  col_types = c("text", "numeric", "numeric", "numeric", "numeric"))
+impf <- read_excel("Impfzahlen_RKI.xlsx", sheet = "Impfungen_proTag",  col_types = c("text", "numeric", "numeric", "numeric", "numeric", "numeric"))
 ```
 
 # Cleaning and formatting 
@@ -35,9 +35,10 @@ impf <- impf[!is.na(impf$Datum),]
 # Rename Columns
 impf <- impf %>% 
   rename(Gesamtimpfungen = `Gesamtzahl verabreichter Impfstoffdosen`, 
-         Erstimpfungen = starts_with("Erst"), 
-         Zweitimpfungen = starts_with("Zweit"),
-         Auffrischimpfungen = starts_with("Auffrisch"))
+         Erstimpfungen = "Erstimpfung", 
+         Zweitimpfungen = "Zweitimpfung",
+         Erst_Auffrischimpfungen = "Erste Auffrischimpfung",
+         Zweit_Auffrischimpfungen = "Zweite Auffrischimpfung")
 
 ```
 
@@ -47,12 +48,15 @@ impf <- impf %>%
 impf <- impf %>% 
             mutate(Anteil_Erst = Erstimpfungen/Gesamtimpfungen*100,
                    Anteil_Zweit = Zweitimpfungen/Gesamtimpfungen*100, 
-                   Anteil_Auffrisch = Auffrischimpfungen/Gesamtimpfungen*100)
+                   Anteil_Erst_Auffrisch = Erst_Auffrischimpfungen/Gesamtimpfungen*100,
+                   Anteil_Zweit_Auffrisch = Zweit_Auffrischimpfungen/Gesamtimpfungen*100)
 plot <- impf %>% 
   #Pivot the table
-  pivot_longer(cols = c(Erstimpfungen, Zweitimpfungen, Auffrischimpfungen), 
+  pivot_longer(cols = c(Erstimpfungen, Zweitimpfungen, Erst_Auffrischimpfungen, Zweit_Auffrischimpfungen), 
                names_to = "Impfungen", 
                values_to = "Anzahl") %>% 
+  #Relevel the variables 
+  mutate(Impfungen = fct_relevel(Impfungen, c("Erstimpfungen", "Zweitimpfungen", "Erst_Auffrischimpfungen", "Zweit_Auffrischimpfungen")))  %>% 
   #Filter for the last seven days available
   filter(Datum > (max(Datum)- days(7))) %>% 
   #Plot
@@ -65,7 +69,7 @@ plot <- impf %>%
   #Add percentage of first vaccination 
   geom_text(data = impf %>%   filter(Datum > (max(Datum)- days(7))),
             aes(label =  percent(Anteil_Erst,.1, decimal.mark = ",", scale = 1), 
-                y = Zweitimpfungen + Erstimpfungen/2), 
+                y = Erst_Auffrischimpfungen + Zweit_Auffrischimpfungen + Zweitimpfungen + (Erstimpfungen/2)), 
             color = "white")+
   #Add vaccination uptake from the week before
    geom_col(data = impf %>% 
@@ -77,6 +81,7 @@ plot <- impf %>%
    scale_x_date(date_breaks = "1 day", date_labels = "%a")+
    scale_y_continuous(label =  label_number(), 
                       expand = expansion(mult = c(0, .05)))+
+   scale_fill_discrete(labels = c("Erstimpfungen", "Zweitimpfungen", "Erst-Auffrischungsimpfungen", "Zweit-Auffrischungsimpfungen"))+
    #Add title with information about the date of publication
    labs(caption = paste0("Stand: ", attr(impf, "date")), 
         title = paste0("Impfungen bis ", format(max(impf$Datum), "%d.%m.%Y")), 
@@ -89,12 +94,16 @@ ggsave("Vaccine-Dashboard.png", plot, width = 20, height = 10, unit = "cm")
 
 # Plotting proportions of types 
 ```{r}
-impf %>% 
+plot2 <- impf %>% 
   pivot_longer(cols = starts_with("Anteil"), names_to = "Art", values_to = "Anteil") %>% 
+  mutate(Art = fct_relevel(Art, rev(c("Anteil_Erst", "Anteil_Zweit", "Anteil_Erst_Auffrisch", "Anteil_Zweit_Auffrisch")))) %>% 
   ggplot()+
   geom_area(aes(x = Datum, y =Anteil, fill = Art))+
   scale_y_continuous(expand = c(0,0))+
-  scale_x_date(expand = c(0,0), date_labels = "%b %y",date_breaks = "2 months")
+  scale_x_date(expand = c(0,0), date_labels = "%b %y",date_breaks = "2 months")+
+  scale_fill_manual(values = rev(scales::hue_pal()(4)), labels = rev(c("Erstimpfungen", "Zweitimpfungen", "Erst-Auffrischungsimpfungen", "Zweit-Auffrischungsimpfungen")))+
+  guides(fill = guide_legend(reverse = T))
+ggsave("Vaccine-Dashboard2.png", plot2, width = 20, height = 10, unit = "cm")
 
 ```
 
